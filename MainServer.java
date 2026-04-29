@@ -80,7 +80,7 @@ public class MainServer {
             FittingRoomServerHandler frsh = frServers.get(i);
 
             if (frsh.alive && frsh.occupied < frsh.totalRooms) {
-                String response = frsh.sendRequest("ACQUIRE");
+                String response = frsh.sendRequest(String.valueOf(customerID));
                 return response;
             }
 

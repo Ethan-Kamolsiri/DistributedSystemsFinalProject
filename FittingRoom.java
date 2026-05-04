@@ -2,7 +2,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Inet4Address;
-import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.Semaphore;
 
@@ -14,34 +13,42 @@ public class FittingRoom {
     private static Inet4Address host;
 
     public static void main(String[] args) throws Exception {
+        host = (Inet4Address) Inet4Address.getLocalHost();
         fittingRoomNumber = Integer.parseInt(args[0]);
-        int port = Integer.parseInt(args[1]);
+        String serverHost = args[1];
+        int serverPort = Integer.parseInt(args[2]);
         waitingChairNumber = fittingRoomNumber * 2;
 
         fittingRoomSemaphore = new Semaphore(fittingRoomNumber, true);
         waitingChairSemaphore = new Semaphore(waitingChairNumber, true);
 
+        System.out.println("Fitting Rooms: " + fittingRoomNumber);
+        System.out.println("Waiting Chairs: " + waitingChairNumber);
+        System.out.println("Connecting to main server at " + serverHost + ":" + serverPort);
 
-        FittingRoom fittingRoom = new FittingRoom();
-        try(ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Waiting for connection...");
-            System.out.println("Fitting Room's: " + fittingRoomNumber);
-            System.out.println("Waiting Chair's: " + waitingChairNumber);
+        try (Socket socket = new Socket(serverHost, serverPort)) {
+            BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter    out = new PrintWriter(socket.getOutputStream(), true);
 
-            while(true) {
-                Socket socket = serverSocket.accept();
+
+            out.println("FITTING_ROOM " + host);
+
+            String line;
+            while ((line = in.readLine()) != null) {
+                final String customerLine = line.trim();
                 new Thread(() -> {
                     try {
-                        fittingRoom.handleClient(socket);
+                        int customerID = Integer.parseInt(customerLine);
+                        findspace(customerID, out);
                     } catch (Exception e) {
-                        System.out.println("Error starting customer thread");
+                        System.out.println("Error handling customer: " + e.getMessage());
                     }
                 }).start();
             }
-        }catch(Exception e) {
-            System.out.println("Program terminated");
+            System.out.println("Main server closed the connection.");
+        } catch (Exception e) {
+            System.out.println("Program terminated: " + e.getMessage());
         }
-
     }
 
 
@@ -54,15 +61,15 @@ public class FittingRoom {
         if (line == null) return;
         int customerID = Integer.parseInt(line);
         findspace(customerID, out);
-        send(out,"Customer " + customerID + "has been dealt with.");
+        send(out,"Customer " + customerID + " has been dealt with.");
 
 
 
     }
 
     public static void findspace(int customerID, PrintWriter out) throws Exception {
-        System.out.println("Finding space for customer: " + customerID + "On server IP:" + host.getHostAddress());
-       // fitting room has room
+        System.out.println("Finding space for customer: " + customerID + " On server IP:" + host.getHostAddress());
+        // fitting room has room
         if(fittingRoomSemaphore.tryAcquire()) {
             useFittingRoom(customerID, out);
             return;
@@ -75,10 +82,10 @@ public class FittingRoom {
             return;
         }
 
-        send(out,"Customer " + customerID + "is now waiting for fitting room");
+        send(out,"Customer " + customerID + " is now waiting for fitting room");
         System.out.println("Customer: " + customerID + " is now waiting for fitting room");
         fittingRoomSemaphore.acquire();
-        send(out,"Customer " + customerID + "has left waiting chair");
+        send(out,"Customer " + customerID + " has left waiting chair");
         System.out.println("Customer: " + customerID + " has left waiting chair");
         waitingChairSemaphore.release();
         useFittingRoom(customerID, out);
@@ -108,4 +115,3 @@ public class FittingRoom {
     }
 
 }
-

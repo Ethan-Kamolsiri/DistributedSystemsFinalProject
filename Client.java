@@ -1,46 +1,50 @@
 import java.io.*;
 import java.net.Socket;
-import java.util.Scanner;
 
 public class Client {
-    public static void main(String[] args) throws Exception{
+    public static void main(String[] args) throws Exception {
+        int n = Integer.parseInt(args[0]);
 
-        Scanner s = new Scanner(System.in);
-            try{
+        for (int i = 0; i < n; i++) {
+            Socket x = new Socket("localhost", 32005);
+            System.out.println("Socket " + i + " connected!");
+            new Thread(new ClientThread(x, i)).start();
 
-                for(int i = 0; i > Integer.parseInt(args[0]); i++){
+            
+            Thread.sleep(randomTime());
+        }
+    }
+    public static int randomTime() {
+        return (int) (Math.random() * 1000); // 0 to 1000 ms
+    }
 
-                    Socket x = new Socket("localhost", 32005);
-                    System.out.println("Socket " + i + " connected!");
-                    new Thread(new clientThread(x, i)).start();
-                    
-                }
-            } catch(Exception e){
-                e.printStackTrace();
-            }
-     }
 }
 
-class clientThread implements Runnable{
-
-    Socket xsoc;
+class ClientThread implements Runnable {
+    Socket xsocket;
     int num;
 
-    public clientThread(Socket x, int y){
-        xsoc = x;
-        num = y;
+    public ClientThread(Socket x, int y) {
+        xsocket = x;
+        num  = y;
     }
 
-    public void run(){
-        try {
-        BufferedReader br = new BufferedReader(new InputStreamReader(xsoc.getInputStream()));
+    public void run() {
+        try (
+                BufferedReader in = new BufferedReader(new InputStreamReader(xsocket.getInputStream()));
+                PrintWriter    out = new PrintWriter(xsocket.getOutputStream(), true)
+        ) {
+            // Ask the server for a fitting room
+            out.println("Customer " + num + "request Room");
+            System.out.println(in.readLine());
 
-        while (true) { 
-            System.out.println(br.readLine());
+            String line;
+            while ((line = in.readLine()) != null) {
+                System.out.println("[" + num + "] " + line);
             }
-        } catch (Exception e) {
+            System.out.println("[" + num + "] Server closed connection.");
+        } catch (IOException e) {
+            System.out.println("[" + num + "] Error: " + e.getMessage());
         }
-        
     }
-
 }

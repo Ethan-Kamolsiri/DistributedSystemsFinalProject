@@ -7,10 +7,9 @@ public class Client {
 
         for (int i = 0; i < n; i++) {
             Socket x = new Socket("localhost", 32005);
-            System.out.println("Socket " + i + " connected!");
             new Thread(new ClientThread(x, i)).start();
 
-            
+
             Thread.sleep(randomTime());
         }
     }
@@ -34,15 +33,14 @@ class ClientThread implements Runnable {
                 BufferedReader in = new BufferedReader(new InputStreamReader(xsocket.getInputStream()));
                 PrintWriter    out = new PrintWriter(xsocket.getOutputStream(), true)
         ) {
-            // Ask the server for a fitting room
-            out.println("Customer " + num + "request Room");
+            // Ask the server for a fitting room doesn't matter what is sent message just creates customer on mainserver side
+            out.println("Customer request Room");
             System.out.println(in.readLine());
 
             String line;
             while ((line = in.readLine()) != null) {
                 System.out.println("[" + num + "] " + line);
             }
-            System.out.println("[" + num + "] Server closed connection.");
         } catch (IOException e) {
             System.out.println("[" + num + "] Error: " + e.getMessage());
         }

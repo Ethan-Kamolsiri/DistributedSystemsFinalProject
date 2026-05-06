@@ -12,12 +12,14 @@ public class MainServer {
     static final int clientPort = 32005;
     static final int FittingRoomPort = 32006;
 
+    // thread safe to ensure that every customer gets a unique id
     private static final AtomicInteger customerCounter = new AtomicInteger(0);
 
-
+    // creates list of clients and fitting rooms connected thread safe
     static List<FRControl> fittingRoomsConnected = Collections.synchronizedList(new ArrayList<>());
     static List<ClientHandler> clientsConnected = Collections.synchronizedList(new ArrayList<>());
 
+    // stores each active client ID and creates a tuple with the client it originated from
     static Map<Integer, ClientHandler> customerOwner = new ConcurrentHashMap<>();
 
 
@@ -32,6 +34,7 @@ public class MainServer {
 
     }
 
+    // loops as program runs and listens for fittingrooms connecting to main server then creates a fitting room controller to handle connections between main server and a fittingroom
     static void acceptFittingRooms() {
         try (ServerSocket serverSocket = new ServerSocket(FittingRoomPort)) {
             System.out.println("Listening for Fitting Rooms on port " + FittingRoomPort);
@@ -39,6 +42,7 @@ public class MainServer {
                 Socket socket = serverSocket.accept();
                 FRControl fr = new FRControl(socket);
                 fittingRoomsConnected.add(fr);
+                System.out.println("Accepted Fitting Room");
                 new Thread(fr).start();
             }
         } catch (IOException e) {
@@ -46,6 +50,7 @@ public class MainServer {
         }
     }
 
+    // loops as program runs and listens for clients connecting to main server then creates a client handler to handle all connections between client and main server
     static void acceptClients() {
         try (ServerSocket serversocket = new ServerSocket(clientPort)) {
             System.out.println("Listening for Clients on port " + clientPort);
@@ -60,14 +65,16 @@ public class MainServer {
         }
     }
 
+    // assigns customerID for every customer to ensure that we don't create duplicate customerID's
     static void assignCustomer(ClientHandler client) {
         int id = customerCounter.incrementAndGet();
         customerOwner.put(id, client);
+        RouteMessage(("Customer Arrives"), id);
         FRControl fittingroom = fittingRoomsConnected.getFirst();
         fittingroom.send(String.valueOf(id));
     }
 
-
+    //For future use with multiple clients connecting will give client that customer originated from
     static void RouteMessage(String action, int id) {
         ClientHandler owner = customerOwner.get(id);
         if (owner != null) {
@@ -77,7 +84,7 @@ public class MainServer {
     }
 
 
-
+    // Does everything for the client and main server connection
     static class ClientHandler implements Runnable {
         Socket socket;
         BufferedReader in;
@@ -95,7 +102,6 @@ public class MainServer {
 
         public void run() {
             try{
-                sendMessage("Connected to Main Server");
                 String line;
                 while((line = in.readLine()) != null){
                     assignCustomer(this);
@@ -112,6 +118,7 @@ public class MainServer {
         }
     }
 
+    // handles the fittingroom and mainserver connection
     static class FRControl implements Runnable {
         String customerID = null;
         Socket socket;

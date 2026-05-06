@@ -1,121 +1,166 @@
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
 public class MainServer {
+    static final int clientPort = 32005;
+    static final int FittingRoomPort = 32006;
 
-    static int fittingRooms ;
-    static int chairs ;
-    static int waiting = 0 ;
-    static int changing = 0 ;
-
-    static List<FittingRoomServerHandler> frServers = new ArrayList<>();
-    static List<ClientHandler> clients = new ArrayList<>();
-
-    public static void main(String[] args) throws Exception {
-        fittingRooms = Integer.parseInt(args[0]);
-        chairs = fittingRooms * 2 ;
-
-        System.out.println("Server started");
-        System.out.println("Fitting Rooms: " + fittingRooms);
-        System.out.println("Chairs: " + chairs);
-
-        Runnable r1 = new Runnable() {
-            public void run() {
-                acceptFittingServers();
-            }
-        };
-
-        Runnable r2 = new Runnable() {
-            public void run() {
-                acceptClients();
-            }
-        };
+    private static final AtomicInteger customerCounter = new AtomicInteger(0);
 
 
+    static List<FRControl> fittingRoomsConnected = Collections.synchronizedList(new ArrayList<>());
+    static List<ClientHandler> clientsConnected = Collections.synchronizedList(new ArrayList<>());
+
+    static Map<Integer, ClientHandler> customerOwner = new ConcurrentHashMap<>();
 
 
-        Thread t1 = new Thread(r1);
-        Thread t2 = new Thread(r2);
+    public static void main(String[] args) {
+        new Thread(() -> {
+            acceptFittingRooms();
+        }).start();
+        new Thread(() -> {
+            acceptClients();
+        }).start();
 
-        t1.start();
-        t2.start();
+
     }
 
-
-
-
-    static void acceptFittingServers() {
-        try {
-            ServerSocket ss = new ServerSocket(32006) ;
-            System.out.println("Waiting for fitting room servers");
+    static void acceptFittingRooms() {
+        try (ServerSocket serverSocket = new ServerSocket(FittingRoomPort)) {
+            System.out.println("Listening for Fitting Rooms on port " + FittingRoomPort);
             while (true) {
-                Socket s = ss.accept();
-                FittingRoomServerHandler handler = new FittingRoomServerHandler(s);
-                frServers.add(handler);
-                Thread t = new Thread(handler);
-                t.start();
-                System.out.println("Fitting room server connected: " + s.getInetAddress().getHostAddress());
+                Socket socket = serverSocket.accept();
+                FRControl fr = new FRControl(socket);
+                fittingRoomsConnected.add(fr);
+                new Thread(fr).start();
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
-
 
     static void acceptClients() {
-        try {
-            ServerSocket ss = new ServerSocket(32005);
-            System.out.println("Waiting for clients on port 32005");
+        try (ServerSocket serversocket = new ServerSocket(clientPort)) {
+            System.out.println("Listening for Clients on port " + clientPort);
             while (true) {
-                Socket s = ss.accept();
-                ClientHandler handler = new ClientHandler(s);
-                clients.add(handler);
-                Thread t = new Thread(handler);
-                t.start();
+                Socket socket = serversocket.accept();
+                ClientHandler clientHandler = new ClientHandler(socket);
+                clientsConnected.add(clientHandler);
+                new Thread(clientHandler).start();
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    static String tryGetRoom() {
-        for (int i = 0; i < frServers.size(); i++) {
-            FittingRoomServerHandler frsh = frServers.get(i);
+    static void assignCustomer(ClientHandler client) {
+        int id = customerCounter.incrementAndGet();
+        customerOwner.put(id, client);
+        FRControl fittingroom = fittingRoomsConnected.getFirst();
+        fittingroom.send(String.valueOf(id));
+    }
 
-            if (frsh.alive && frsh.occupied < frsh.totalRooms) {
-                String response = frsh.sendRequest(String.valueOf(customerID));
-                return response;
+
+    static void RouteMessage(String action, int id) {
+        ClientHandler owner = customerOwner.get(id);
+        if (owner != null) {
+            owner.sendMessage(action);
+        }
+
+    }
+
+
+
+    static class ClientHandler implements Runnable {
+        Socket socket;
+        BufferedReader in;
+        PrintWriter out;
+
+        ClientHandler(Socket socket) throws IOException {
+            this.socket = socket;
+            this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            this.out = new PrintWriter(socket.getOutputStream(), true);
+        }
+
+        synchronized void sendMessage(String message){
+            out.println(message);
+        }
+
+        public void run() {
+            try{
+                sendMessage("Connected to Main Server");
+                String line;
+                while((line = in.readLine()) != null){
+                    assignCustomer(this);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-
+            clientsConnected.remove(this);
+            try {
+                socket.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
-        return "WAIT";
     }
 
-    static boolean tryGetChair() {
-        if (waiting < chairs) {
-            waiting++;
-            return true;
+    static class FRControl implements Runnable {
+        String customerID = null;
+        Socket socket;
+        BufferedReader in;
+        PrintWriter out;
+        boolean running = true;
+
+        FRControl(Socket socket) throws IOException {
+            this.socket = socket;
+            this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            this.out = new PrintWriter(socket.getOutputStream(), true);
         }
-        return false;
-    }
 
-    static void customerGotRoom() {
-        if (waiting > 0){
-		waiting--;
-		}
-        changing++ ;
-        sendStatusToAll();
-    }
-
-    static void customerLeftRoom() {
-        if (changing > 0){
-		changing--;
-	}
-        sendStatusToAll();
-    }
-
-    static void sendStatusToAll() {
-        String message = "STATUS changing = " + changing + " waiting = " + waiting;
-        for (int i = 0; i < clients.size(); i++) {
-            clients.get(i).send(message);
+        void send(String message) {
+            out.println(message);
         }
-        System.out.println("Broadcast: " + message);
+
+        public void run(){
+            try {
+                String line;
+
+                while ((line = in.readLine()) != null) {
+                    String[] tokens = line.split(" ");
+                    customerID = tokens[1];
+
+                    String action = classify(line);
+                    if(action != null){
+                        RouteMessage(action, Integer.parseInt(customerID));
+                    }
+
+
+
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        String classify(String line) {
+            line = line.toLowerCase();
+            if (line.contains("entered")) return "ENTERED";
+            if (line.contains("frustrated")) return "LEFT_FRUSTRATED";
+            if (line.contains("left waiting chair")) return "LEFT_CHAIR";
+            if (line.contains("is now waiting")) return "WAITING";
+            if (line.contains("left fitting room")) return "lEFT_FITTINGROOM";
+            return null;
+        }
+
+
     }
+
 }

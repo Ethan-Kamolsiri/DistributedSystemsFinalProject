@@ -82,7 +82,7 @@ public class FittingRoom {
             return;
         }
 
-        send(out,"Customer " + customerID + " is now waiting for fitting room");
+        send(out,"Customer: " + customerID + " is now waiting for fitting room");
         System.out.println("Customer: " + customerID + " is now waiting for fitting room");
         fittingRoomSemaphore.acquire();
         send(out,"Customer " + customerID + " has left waiting chair");

@@ -31,7 +31,7 @@ public class FittingRoom {
             PrintWriter    out = new PrintWriter(socket.getOutputStream(), true);
 
 
-            out.println("FITTING_ROOM " + host);
+            out.println("FITTINGROOM " + host);
 
             String line;
             while ((line = in.readLine()) != null) {
@@ -61,7 +61,7 @@ public class FittingRoom {
         if (line == null) return;
         int customerID = Integer.parseInt(line);
         findspace(customerID, out);
-        send(out,"Customer " + customerID + " has been dealt with.");
+        send(out,"Customer: " + customerID + " has been dealt with.");
 
 
 

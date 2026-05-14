@@ -4,9 +4,10 @@ import java.net.Socket;
 public class Client {
     public static void main(String[] args) throws Exception {
         int n = Integer.parseInt(args[0]);
+        String hostname = args[1];
 
         for (int i = 0; i < n; i++) {
-            Socket x = new Socket("localhost", 32005);
+            Socket x = new Socket(hostname, 32005);
             new Thread(new ClientThread(x, i)).start();
 
 

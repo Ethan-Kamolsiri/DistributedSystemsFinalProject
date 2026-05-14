@@ -13,7 +13,7 @@ public class FittingRoom {
     private static Inet4Address host;
 
     public static void main(String[] args) throws Exception {
-        host = (Inet4Address) Inet4Address.getLocalHost();
+        //host = (Inet4Address) Inet4Address.getLocalHost();
         fittingRoomNumber = Integer.parseInt(args[0]);
         String serverHost = args[1];
         int serverPort = Integer.parseInt(args[2]);
@@ -31,7 +31,7 @@ public class FittingRoom {
             PrintWriter    out = new PrintWriter(socket.getOutputStream(), true);
 
 
-            out.println("FITTINGROOM " + host);
+            //out.println("FITTINGROOM " );
 
             String line;
             while ((line = in.readLine()) != null) {
@@ -68,7 +68,7 @@ public class FittingRoom {
     }
 
     public static void findspace(int customerID, PrintWriter out) throws Exception {
-        System.out.println("Finding space for customer: " + customerID + " On server IP:" + host.getHostAddress());
+        //System.out.println("Finding space for customer: " + customerID + " On server IP:" + host.getHostAddress());
         // fitting room has room
         if(fittingRoomSemaphore.tryAcquire()) {
             useFittingRoom(customerID, out);

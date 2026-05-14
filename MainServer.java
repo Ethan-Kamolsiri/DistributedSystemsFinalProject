@@ -14,13 +14,18 @@ public class MainServer {
 
     // thread safe to ensure that every customer gets a unique id
     private static final AtomicInteger customerCounter = new AtomicInteger(0);
+    private static final AtomicInteger roundRobinIndex = new AtomicInteger(0);
 
     // creates list of clients and fitting rooms connected thread safe
     static List<FRControl> fittingRoomsConnected = Collections.synchronizedList(new ArrayList<>());
     static List<ClientHandler> clientsConnected = Collections.synchronizedList(new ArrayList<>());
 
+
     // stores each active client ID and creates a tuple with the client it originated from
     static Map<Integer, ClientHandler> customerOwner = new ConcurrentHashMap<>();
+    static Map<Integer,FRControl> customerInFittingRoom = new ConcurrentHashMap<>();
+
+
 
 
     public static void main(String[] args) {
@@ -42,7 +47,8 @@ public class MainServer {
                 Socket socket = serverSocket.accept();
                 FRControl fr = new FRControl(socket);
                 fittingRoomsConnected.add(fr);
-                System.out.println("Accepted Fitting Room");
+                System.out.print("Accepted Fitting Room: ");
+                System.out.println(socket.getRemoteSocketAddress());
                 new Thread(fr).start();
             }
         } catch (IOException e) {
@@ -70,7 +76,11 @@ public class MainServer {
         int id = customerCounter.incrementAndGet();
         customerOwner.put(id, client);
         RouteMessage(("Customer Arrives"), id);
-        FRControl fittingroom = fittingRoomsConnected.getFirst();
+        int index = roundRobinIndex.getAndIncrement() % fittingRoomsConnected.size();
+
+        FRControl fittingroom = fittingRoomsConnected.get(index);
+        customerInFittingRoom.put(id, fittingroom);
+
         fittingroom.send(String.valueOf(id));
     }
 
@@ -138,6 +148,7 @@ public class MainServer {
 
         public void run(){
             try {
+
                 String line;
 
                 while ((line = in.readLine()) != null) {
@@ -153,7 +164,7 @@ public class MainServer {
 
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("Fitting room: " + socket.getRemoteSocketAddress() +" failed");
             }
         }
 
@@ -163,7 +174,7 @@ public class MainServer {
             if (line.contains("frustrated")) return "LEFT_FRUSTRATED";
             if (line.contains("left waiting chair")) return "LEFT_CHAIR";
             if (line.contains("is now waiting")) return "WAITING";
-            if (line.contains("left fitting room")) return "lEFT_FITTINGROOM";
+            if (line.contains("left fitting room")) return "LEFT_FITTINGROOM";
             return null;
         }
 
